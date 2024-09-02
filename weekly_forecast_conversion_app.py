@@ -26,20 +26,23 @@ def convert_monthly_to_weekly_forecast(monthly_forecast_df):
     # Convert daily_forecast dictionary to DataFrame
     daily_forecast_df = pd.DataFrame(list(daily_forecast.items()), columns=['Date', 'Daily Forecast'])
     
+    # Format the Date column to display only the date
+    daily_forecast_df['Date'] = daily_forecast_df['Date'].dt.strftime('%Y-%m-%d')
+    
     # Add a column for the day of the week
-    daily_forecast_df['Day of Week'] = daily_forecast_df['Date'].dt.day_name()
+    daily_forecast_df['Day of Week'] = daily_forecast_df['Date'].apply(pd.to_datetime).dt.day_name()
 
     # Step 2: Aggregate into Weekly Data (starting from 27th Dec of previous month)
     start_week = pd.Timestamp('2023-12-27') + pd.offsets.Week(weekday=0)
     
     # Set the first Monday of the year as the starting week
-    daily_forecast_df['Week'] = (daily_forecast_df['Date'] - start_week).dt.days // 7 + 1
+    daily_forecast_df['Week'] = (pd.to_datetime(daily_forecast_df['Date']) - start_week).dt.days // 7 + 1
     
     # Aggregate daily forecast to weekly forecast
     weekly_forecast = daily_forecast_df.groupby('Week').agg({'Daily Forecast': 'sum'}).reset_index()
 
     # Add the Week number as a separate column in the weekly DataFrame
-    #weekly_forecast['Week Number'] = weekly_forecast['Week']
+    weekly_forecast['Week Number'] = weekly_forecast['Week']
 
     return weekly_forecast, daily_forecast_df
 
@@ -58,10 +61,10 @@ if uploaded_file is not None:
     
     # Display the weekly forecast DataFrame
     st.subheader('Weekly Forecast')
-    st.dataframe(weekly_forecast_df)
+    st.dataframe(weekly_forecast_df.style.hide(axis="index"))
     
     # Optionally, display the daily forecast DataFrame
     st.subheader('Daily Forecast')
-    st.dataframe(daily_forecast_df)
+    st.dataframe(daily_forecast_df.style.hide(axis="index"))
 else:
     st.warning("Please upload an Excel file to proceed.")
