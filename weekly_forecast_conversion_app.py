@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from pandas.tseries.offsets import BDay
 
-# Function to convert monthly forecast to weekly forecast
+# Function to convert monthly forecast to weekly forecast for a single group
 def convert_monthly_to_weekly_forecast(monthly_forecast_df):
     daily_forecast = {}
     
@@ -21,7 +21,7 @@ def convert_monthly_to_weekly_forecast(monthly_forecast_df):
         
         # Distribute the forecast over workdays
         for date in workdays:
-            daily_forecast[date] = daily_value
+            daily_forecast[date] = daily_forecast.get(date, 0) + daily_value
             
     # Convert daily_forecast dictionary to DataFrame
     daily_forecast_df = pd.DataFrame(list(daily_forecast.items()), columns=['Date', 'Daily Forecast'])
@@ -54,17 +54,47 @@ uploaded_file = st.file_uploader("Upload Monthly Forecast Excel File", type=["xl
 
 if uploaded_file is not None:
     # Read the uploaded file into a DataFrame
-    monthly_forecast_df = pd.read_excel(uploaded_file)
+    df = pd.read_excel(uploaded_file)
     
-    # Convert the monthly forecast to weekly forecast
-    weekly_forecast_df, daily_forecast_df = convert_monthly_to_weekly_forecast(monthly_forecast_df)
+    # Ensure 'Month' column is in string format (if not already)
+    df['Month'] = df['Month'].astype(str)
+    
+    # Group by Country, Region, and Material
+    grouped = df.groupby(['Country', 'Region', 'Material'])
+    
+    all_weekly_forecast = []
+    all_daily_forecast = []
+
+    # Process each group
+    for (country, region, material), group_df in grouped:
+        weekly_forecast_df, daily_forecast_df = convert_monthly_to_weekly_forecast(group_df)
+        
+        # Add country, region, and material columns to the results
+        weekly_forecast_df['Country'] = country
+        weekly_forecast_df['Region'] = region
+        weekly_forecast_df['Material'] = material
+        
+        daily_forecast_df['Country'] = country
+        daily_forecast_df['Region'] = region
+        daily_forecast_df['Material'] = material
+        
+        # Append results to the list
+        all_weekly_forecast.append(weekly_forecast_df)
+        all_daily_forecast.append(daily_forecast_df)
+    
+    # Concatenate all results into single DataFrames
+    final_weekly_forecast_df = pd.concat(all_weekly_forecast, ignore_index=True)
+    final_daily_forecast_df = pd.concat(all_daily_forecast, ignore_index=True)
     
     # Display the weekly forecast DataFrame
     st.subheader('Weekly Forecast')
-    st.dataframe(weekly_forecast_df.style.hide(axis="index"))
+    final_weekly_forecast_df = final_weekly_forecast_df[['Country', 'Region', 'Material', 'Week Number','Daily Forecast']]
+    final_weekly_forecast_df = final_weekly_forecast_df.rename(columns={'Daily Forecast': 'Weekly Forecast'})
+    st.dataframe(final_weekly_forecast_df.style.hide(axis="index"))
     
     # Optionally, display the daily forecast DataFrame
     st.subheader('Daily Forecast')
-    st.dataframe(daily_forecast_df.style.hide(axis="index"))
+    final_daily_forecast_df = final_daily_forecast_df[['Country', 'Region', 'Material', 'Date', 'Day of Week', 'Week', 'Daily Forecast']]
+    st.dataframe(final_daily_forecast_df.style.hide(axis="index"))
 else:
     st.warning("Please upload an Excel file to proceed.")
